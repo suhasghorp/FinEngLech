@@ -1,19 +1,27 @@
-// BlackScholesJumps.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
+#ifndef __BSJUMPS_H_INCLUDED__
+#define __BSJUMPS_H_INCLUDED__
 
-#include <BlackScholesJumps.h>
 #include <algorithm>
 #include <iostream>
 #include <cmath>
 #include <random>
 #include <numeric>
 #include <chrono>
-
+#include <Eigen/Dense>
+#include <Eigen/Core>
 #include <EigenRand/EigenRand>
 
+
+using namespace Eigen;
 using namespace std::chrono;
 
 
+enum class OptionType { CALL, PUT };
+
+struct PathsStruct {
+    ArrayXXd J;
+    ArrayXXd S;
+};
 
 ArrayXXd gen_normdist_array(size_t seed, size_t rows, size_t cols, double mu, double sigma) {
     Rand::P8_mt19937_64 urng{ seed };
@@ -69,3 +77,6 @@ double CallOptionCondExpectation(size_t num_of_paths, size_t T, double S0, doubl
     }
     return results.mean();
 }
+
+#endif
+

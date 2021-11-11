@@ -1,9 +1,8 @@
-#ifndef __HULLWHITE_H_INCLUDED__
-#define __HULLWHITE_H_INCLUDED__
+#ifndef __HULLWHITE1F_H_INCLUDED__
+#define __HULLWHITE1F_H_INCLUDED__
 
 #include <cmath>
-#include <numeric>
-#include <Eigen/Dense>
+#include <vector>
 #include <Eigen/Core>
 #include <EigenRand/EigenRand>
 #include <boost/math/quadrature/trapezoidal.hpp>
@@ -12,7 +11,7 @@ using namespace Eigen;
 using boost::math::quadrature::trapezoidal;
 
 
-namespace hullwhite {
+namespace hullwhite1f {
 
 	template <typename T>
 	std::vector<T> linspace(T start, T end, int num)
@@ -22,7 +21,7 @@ namespace hullwhite {
 			if (1 == num){
 				linspaced.push_back(static_cast<T>(start));
 			}else{
-				double delta = (end - start) / (num - 1);
+				const double delta = (end - start) / (num - 1);
 				for (auto i = 0; i < (num - 1); ++i){
 					linspaced.push_back(static_cast<T>(start + delta * i));
 				}
@@ -33,24 +32,27 @@ namespace hullwhite {
 		return linspaced;
 	}
 
-	struct PathsStruct {
-		ArrayXXd M;
-		ArrayXd T;
-	};
-
-	ArrayXXd GenNormDistArray(size_t rows, size_t cols, double mu, double sigma) {
-		std::random_device rd;
-		//Rand::P8_mt19937_64 urng{ rd()};
-		Rand::P8_mt19937_64 urng{ 42 };
-		Rand::NormalGen<double> norm_gen{ mu, sigma };
-		ArrayXXd mat = norm_gen.template generate<ArrayXXd>(rows, cols, urng);
-		return mat;
+	Eigen::ArrayXd F(const Eigen::ArrayXd& column){
+		Eigen::ArrayXd abc;
+		abc << 1.0, 2.0, 3.0;
+		return column + abc;
 	}
 
+	inline ArrayXXd GenNormDistArray(size_t rows, size_t cols, double mu, double sigma) {
+		ArrayXXd mat(rows, cols); mat.setZero();
+		std::vector<size_t> seeds(cols);
+		std::iota(seeds.begin(), seeds.end(), 42);	
+		
+		std::for_each(mat.colwise().begin(), mat.colwise().end(), [&seeds, mu, sigma, rows, i = 0](const auto& column) mutable {
+			Rand::P8_mt19937_64 urng{ seeds.at(i) };
+			Rand::NormalGen<double> norm_gen{ mu, sigma };
+			column < norm_gen.generate<ArrayXd>(rows, 1, urng);
+			++i;
+		});
+		return mat;
+	}
 	
-
-	
-	auto forward(
+	inline auto forward(
 		const double& t,
 		const double& dt,
 		const std::function<double(double)>& P0T){
@@ -58,11 +60,11 @@ namespace hullwhite {
 		return -(log(P0T(t + dt)) - log(P0T(t - dt))) / (2 * dt);				
 	}
 
-	auto HW_r_0(
+	inline auto HW_r_0(
 		const double& lambda,
 		const double& eta,
 		const std::function<double(double)>& P0T) {
-		return forward(0.00001, 0.0001, P0T);
+		return forward(0.001, 0.01, P0T);
 	}
 
 	template <typename MeanRevertParameter, typename Volatility, typename MarketCurve, typename Time>
@@ -73,7 +75,6 @@ namespace hullwhite {
 		const Time& T1, const Time& T2
 	) {
 		auto tau = T2 - T1;
-		//const ArrayXi zGrid = ArrayXi::LinSpaced(0.0, tau, 250);
 		auto B_r = [&](const auto& t) {return 1.0 / lambda * (std::exp(-lambda * t) - 1.0); };
 		auto theta = [&](const auto& t) {
 			return 1.0 / lambda * (forward(t + 0.0001, 0.0001, P0T) - forward(t - 0.0001, 0.0001, P0T)) / (2.0 * 0.0001) + forward(t, 0.0001, P0T) + eta * eta / (2.0 * lambda * lambda) * (1.0 - std::exp(-2.0 * lambda * t));
@@ -111,7 +112,7 @@ namespace hullwhite {
 
 
 	template <typename NumOfPaths, typename NumOfSteps, typename Time, typename MarketCurve, typename MeanRevertParam, typename Volatility>
-	auto GeneratePathsHWEuler(
+	std::tuple< ArrayXXd, ArrayXd > GeneratePathsHWEuler(
 		const NumOfPaths& numOfPaths,
 		const NumOfSteps& numOfSteps,
 		const Time& T,
@@ -124,33 +125,31 @@ namespace hullwhite {
 
 		auto r0 = forward(0.01, deltaT, P0T);
 
-		auto dt = (double)T / numOfSteps;
+		auto dt = static_cast<double>(T) / numOfSteps;
 
 		auto theta = [&](const auto& t) {
-			return 1.0 / lambda * (forward(t + dt, deltaT, P0T) - forward(t - dt, deltaT, P0T)) / (2.0 * 0.0001) + forward(t, deltaT, P0T) + eta * eta / (2.0 * lambda * lambda) * (1.0 - std::exp(-2.0 * lambda * t));
+			auto f1 = forward(t + dt, deltaT, P0T);
+			auto f2 = forward(t - dt, deltaT, P0T);
+			auto f3 = forward(t, deltaT, P0T);
+			return 1.0 / lambda * (f1 - f2) / (2.0 * dt) + f3 + eta * eta / (2.0 * lambda * lambda) * (1.0 - std::exp(-2.0 * lambda * t));
 		};
 
 		ArrayXXd W(numOfPaths, numOfSteps + 1); W.setZero();
 		ArrayXXd R(numOfPaths, numOfSteps + 1); R.setZero(); R.col(0) = r0;
 		ArrayXXd M(numOfPaths, numOfSteps + 1); M.setZero(); M.col(0) = 1.0;
 		ArrayXXd Z = GenNormDistArray(numOfPaths, numOfSteps, 0.0, 1.0);
-		ArrayXd time(numOfSteps + 1);time.setZero();
-
-		
+		ArrayXd time(numOfSteps + 1); time.setZero();
 
 		for (size_t i = 0; i < numOfSteps; ++i) {
 			W.col(i + 1) = W.col(i) + std::sqrt(dt) * Z.col(i);
+			auto th = theta(time[i]);
 			R.col(i + 1) = R.col(i) + lambda * (theta(time[i]) - R.col(i)) * dt + eta * (W.col(i + 1) - W.col(i));
 			M.col(i + 1) = M.col(i) * exp((R.col(i + 1) + R.col(i)) * 0.5 * dt);
 			time[i + 1] = time[i] + dt;
 		}
 
-		return PathsStruct { M, time };
-		
+		//return PathsStruct{ M, time };
+		return { M, time };
 	}
-
-
 }
-
-
 #endif

@@ -1,5 +1,5 @@
-#include "catch.hpp"
-#include <../src/BlackScholesJumps.h>
+#include <catch.hpp>
+#include <FinEngLech/BSJumps.h>
 #include <tbb/parallel_for.h>
 #include <mutex>
 #include <iostream>
@@ -24,7 +24,7 @@ TEST_CASE("parallel for") {
     const size_t initSeed = 106;
     std::vector<size_t> seeds;
 
-    auto start = high_resolution_clock::now();
+    const auto start = high_resolution_clock::now();
 
     const ArrayXi NGrid = ArrayXi::LinSpaced(10, 100, 10000);
     const size_t num_of_runs = NGrid.size();
@@ -40,8 +40,8 @@ TEST_CASE("parallel for") {
         resultCondExp[i] = CallOptionCondExpectation(NGrid[i], T, S0, K, terminalJ, r);
     });
 
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<milliseconds>(stop - start);
+    const auto stop = high_resolution_clock::now();
+    const auto duration = duration_cast<milliseconds>(stop - start);
     std::cout << "It took " << duration.count() / 1000.0 << " seconds" << "\n";
 
     std::cout << "--- Monte Carlo Option Price Convergence zig-zag pattern ----" << "\n";
