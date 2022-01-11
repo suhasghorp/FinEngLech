@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <vector>
+#include <numeric>
 #include <Eigen/Core>
 #include <EigenRand/EigenRand>
 #include <boost/math/quadrature/trapezoidal.hpp>

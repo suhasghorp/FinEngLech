@@ -10,7 +10,7 @@ project(FinEngLech
         )
 
 # Require C++11 for Catch2
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON) 
 
 
@@ -34,18 +34,13 @@ target_include_directories(
 if (MSVC_VERSION GREATER_EQUAL "1900")
     include(CheckCXXCompilerFlag)
     CHECK_CXX_COMPILER_FLAG("/std:c++latest" _cpp_latest_flag_supported)
-    if (_cpp_latest_flag_supported)
+   if (_cpp_latest_flag_supported)
         add_compile_options("/std:c++latest")
-    endif()
+   endif()
 else(MSVC_VERSION)
-    target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_17)
+   target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_17)
 endif()
 
-#if(MSVC)
-#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
-#else(MSVC)
-#    target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_17)
-#endif(MSVC)
 
 find_package(Threads)
 find_package(fmt CONFIG REQUIRED) 
@@ -55,35 +50,41 @@ find_package(Catch2 CONFIG REQUIRED)
 find_package(NLopt CONFIG REQUIRED)
 find_package(Boost COMPONENTS system REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
-#find_package(Ceres CONFIG REQUIRED COMPONENTS EigenSparse)
+
 
 include_directories(extern)
 
 target_compile_options(${PROJECT_NAME} INTERFACE 
      $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
-          -Wall -Wextra -Wpedantic -Werror>
+          -Wall -Wextra -Wpedantic -Werror -fopenmp>
      $<$<CXX_COMPILER_ID:MSVC>:
-          /W4>)
+          /W4 /openmp /PROFILE>)
 
 # Test
 
-#FITPACK
+#FITPACK only on Linux WSL to match Lech's Scipy interpolation
 add_library(FitPackAppLib SHARED IMPORTED)
 set_target_properties(FitPackAppLib PROPERTIES IMPORTED_LOCATION /home/sghorp/fitpackpp/build/libfitpackpp.a)
 add_library(FitPackLib SHARED IMPORTED)
 set_target_properties(FitPackLib PROPERTIES IMPORTED_LOCATION /home/sghorp/fitpackpp/build/libfitpack.a)
 
-add_executable(BSMonteCarloConvergenceTest tests/catch_config.cpp tests/BSMonteCarloConvergenceTest.cpp)
-target_link_libraries(BSMonteCarloConvergenceTest PRIVATE TBB::tbb Threads::Threads fmt::fmt Catch2::Catch2 Eigen3::Eigen)
-target_include_directories(BSMonteCarloConvergenceTest PRIVATE ${PROJECT_SOURCE_DIR}/include)
+#add_executable(BSMonteCarloConvergenceTest tests/catch_config.cpp tests/BSMonteCarloConvergenceTest.cpp)
+#target_link_libraries(BSMonteCarloConvergenceTest PRIVATE TBB::tbb Threads::Threads fmt::fmt Catch2::Catch2 Eigen3::Eigen)
+#target_include_directories(BSMonteCarloConvergenceTest PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
-add_executable(HullWhiteZCBTest tests/catch_config.cpp tests/HullWhiteZCBTest.cpp ${SRC_FILES})
-target_link_libraries(HullWhiteZCBTest PRIVATE TBB::tbb Threads::Threads fmt::fmt Catch2::Catch2 Eigen3::Eigen FitPackAppLib FitPackLib)
-target_include_directories(HullWhiteZCBTest PRIVATE ${PROJECT_SOURCE_DIR}/include)
+#add_executable(HullWhiteZCBTest tests/catch_config.cpp tests/HullWhiteZCBTest.cpp ${SRC_FILES})
+#target_link_libraries(HullWhiteZCBTest PRIVATE TBB::tbb Threads::Threads fmt::fmt Catch2::Catch2 Eigen3::Eigen FitPackAppLib FitPackLib)
+#target_include_directories(HullWhiteZCBTest PRIVATE ${PROJECT_SOURCE_DIR}/include)
+
+add_executable(YieldCurveTest tests/catch_config.cpp src/IRSwap.cpp src/YieldCurve.cpp tests/YieldCurveTest.cpp )
+#target_link_libraries(YieldCurveTest PRIVATE TBB::tbb Threads::Threads fmt::fmt Catch2::Catch2 Eigen3::Eigen FitPackAppLib FitPackLib)
+target_link_libraries(YieldCurveTest PRIVATE TBB::tbb Threads::Threads fmt::fmt Catch2::Catch2 Eigen3::Eigen)
+target_include_directories(YieldCurveTest PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
 include(CTest)
 include(Catch)
-catch_discover_tests(BSMonteCarloConvergenceTest HullWhiteZCBTest)
+#catch_discover_tests(BSMonteCarloConvergenceTest HullWhiteZCBTest YieldCurveTest)
+catch_discover_tests(YieldCurveTest)
 enable_testing()
 
 if(FINENGLECH_INSTALL_LIBRARY)
